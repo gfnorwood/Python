@@ -1,0 +1,36 @@
+# Author: gfnorwood@hotmail.com
+# Purpose:  The purpose of this script is to parse and format the CUIC output file.
+
+# Import Statementst
+import pandas as pd             # Dateframe 
+from datetime import datetime   # Datetime management
+from datetime import time       # Datetime management
+import os                       # File management
+import openpyxl                 # Excel worksheet manipulation
+from openpyxl import Workbook   # Workbook specific extensions
+from openpyxl import load_workbook  # Load a workbook
+import shutil                   # File name management
+import sys			# Command line management
+# Variables
+
+# Functions
+
+# Main
+
+print("Starting script")
+print("")
+
+#state = pd.read_excel("input\Agent State Detail Report.xlsx", header = [1], index_col = 0, skipfooter = 2, parse_dates = ["State Transition Time"])
+state = pd.read_excel(sys.argv[1], header = [1], index_col = 0, skipfooter = 2, parse_dates = ["State Transition Time"])
+state.set_index(["Agent ID", "State Transition Time"])
+
+#state["duration"] = state.duration.astype(str)
+state["State Transition Time"] = pd.to_datetime(state["State Transition Time"]).dt.date
+
+# Create output files (flat CSV file and grouped XLSX file)
+now = datetime.now()
+date_time = now.strftime("%m-%d-%Y") 
+state.to_csv("out_" + date_time + ".csv")
+
+print("")
+print("Script complete")
