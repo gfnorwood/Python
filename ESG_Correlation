@@ -1,0 +1,137 @@
+import pandas as pd
+import statsmodels.api as sm
+import os
+import numpy as np
+#import scipy as sp
+from scipy import stats
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set()
+
+def t_stat_corr(df, x, y):
+  corr_xy = np.corrcoef(df[x]. df[y])[0][1]
+  n = len(df)
+  t_stat = (corr_xy * np.sqrt(n-2)) / np.sqrt(1 - corr_xy ** 2)
+
+  return t_stat
+
+def t_stat(df, port_low, port_high):
+
+  difference_returns = df[port_low] - df[port_high]
+  mean_difference_returns = difference_returns.mean()
+  std_difference_returns = difference_returns.std()
+  n = len(df)
+
+  t_stat = mean_difference_returns / (std_difference_returns / np.sqrt(n))
+
+  return t_stat
+  
+# Main
+
+# Stock price dataset
+df_price = pd.read_csv('SP500_Price_Data.csv')
+df_price['Date'] = pd.to_datetime(df_price['Date'])
+df_price.set_index('Date', inplace=True)
+
+# ESG Dataset
+df_esg = pd.read_csv('SP500_ESG_Data.csv')
+
+# Calculate returns for all stocks
+df_returns = df_price.pct_change(1, fill_method=None)
+
+#print(df_returns.head())
+#print(df_esg.info())
+
+# Combine E(r), total risk and ESG data
+#df_master = df_returns.agg(['mean', 'std']).T
+#df_master.reset_index(inplace=True)
+#df_master.columns = ['Ticker', 'Expected Returns', 'Total Risk']
+#df_master = df_master.merge(df_esg, left_on='Ticker', right_on='Symbol')
+
+
+#plt.figure(figsize=(12, 8))
+#plt.title("Expected Return vs. Total Risk", fontsize=18)
+#sns.regplot(y=df_master['Expected Return'], x=df_master['ESG Risk Score'], scatter_kws={"color":"#39b83b"}, line_kws={"color":"#ffbd4a"})
+
+
+# Drop rows that do not have an ESG risk score and reset the index
+#df_master.dropna(subset=['ESG Risk Score'], inplace=True)
+#df_master.reset_index(inplace=True, drop=True)
+
+df_esg.dropna(subset=['ESG Risk Score'], inplace=True)
+df_esg.reset_index(inplace=True, drop=True)
+
+
+# Test correlation hypothesis
+# H1
+#t_stat_corr(df=df_master, x="Expected Return", y="ESG Risk Score")
+
+# H2
+#t_stat_corr(df=df_master, x="Total Risk", y="ESG Risk Score")
+
+# Create quintiles for stocks
+quintile_rank_labels = ['Q' + str(i) for i in range(1,6)]
+
+# Create a new column and soft ESG risk into buckets
+df_esg['Quintile ESG Rank'] = df_esg['ESG Risk Score'].transform(
+  lambda x: pd.qcut(x, 5, labels=quintile_rank_labels)
+)
+
+# Merge ESG and Returns Data
+df_returns = df_returns.unstack().reset_index()
+df_returns.columns = ['Ticker', 'Date', 'Returns']
+
+df_returns_esg = df_returns.merge(df_esg, left_on='Ticker', right_on='Symbol')
+
+# Estimate Quintile ESG Portfolio Returns
+quintile_returns = df_returns_esg.groupby(['Date', 'Quintile ESG Rank'])['Returns'].mean().unstack()
+quintile_returns.dropna()
+
+print(quintile_returns.head())
+
+# Use a custom formula
+#print(t_stat(df=quintile_returns, port_low='Q1', port_high='Q5'))
+# Use the stats library
+#print(stats.ttest_rel(quintile_returns['Q1'], quintile_returns['Q5']))
+
+sp500_price = pd.read_csv('SP500_Index_Market_Price_Data.csv')
+sp500_price['Close'].isna().any() # check for missing observations (result ==false)
+sp500_price['Market Return'] = sp500_price['Close'].pct_change(1)  # compute market return
+
+sp500_price.dropna(inplace=True)
+sp500_price.reset_index(inplace=True, drop=True)
+
+print(sp500_price.head())
+
+quintile_returns.to_csv('temp.csv')
+ols_data = pd.read_csv('temp.csv')
+
+ols_data['Market Return'] = sp500_price['Market Return']
+
+print(ols_data.head())
+
+ols_data['Risk Free Rate'] = 0.02 / 250
+
+ols_data['Excess Market Return'] = ols_data['Market Return'] - ols_data['Risk Free Rate']
+ols_data['Q1 minus Q5'] = ols_data['Q1'] - ols_data['Q5']
+
+print(ols_data.head())
+ols_data.drop(columns=ols_data.columns[1:6], inplace=True)
+
+y = ols_data['Q1 minus Q5']
+x = ols_data['Excess Market Return']
+x = sm.add_constant(x)
+
+model = sm.OLS(y, x) # run the OLS model
+result = model.fit() # fit the model
+print(result.summary()) # display the summary of the model
+print(result.params()) # prints params for core values of interest
+
+# print constant intercept
+# print(results.params(0))
+# print(results.params('const'))
+
+# Annualized alpha - crude method
+print(results.params(0) * 250)
+# Annualized alpha - sophisticated method
+print((1 + results.params(0)) ** 250 - 1)
