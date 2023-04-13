@@ -1,0 +1,30 @@
+import pandas as pd
+import numpy as np
+import requests
+
+df_spy = pd.read_csv('SPY_Data.csv')
+df_spy['Date'] = pd.to_datetime(df_spy['Date'])
+df_spy.set_index('Date', inplace=True)
+
+#df_qqq = pd.read_csv('QQQ_Data.csv')
+#df_qqq['Date'] = pd.to_datetime(df_qqq['Date'])
+#df_qqq.set_index('Date', inplace=True)
+
+#df_iwm = pd.read_csv('IWM_Data.csv')
+#df_iwm['Date'] = pd.to_datetime(df_iwm['Date'])
+#df_iwm.set_index('Date', inplace=True)
+
+df_spy['Returns'] = df_spy['Adj Close'].pct_change(1, fill_method=None)
+
+# numpy variance
+var_spy = np.var(df_spy['Returns'], ddof=1)
+sd_spy = np.sqrt(var_spy)
+sd_spy_annual = sd_spy * np.sqrt(250)
+
+print(df_spy.head())
+#print(df_qqq.head())
+#print(df_iwm.head())
+
+print(var_spy)
+print(sd_spy)
+print(sd_spy_annual)
