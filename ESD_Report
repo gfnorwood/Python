@@ -1,0 +1,121 @@
+# Author: gfnorwood@hotmail.com
+# Purpose:  The purpose of this script is to part state detail data into it's component parts
+
+# Import Statementst
+import pandas as pd             # Dateframe 
+from datetime import datetime   # Datetime management
+from datetime import time       # Datetime management
+import os                       # File management
+import openpyxl                 # Excel worksheet manipulation
+from openpyxl import Workbook   # Workbook specific extensions
+from openpyxl import load_workbook  # Load a workbook
+import shutil                   # File name management
+import sys                      # Command line management
+
+# Variables
+
+# Functions
+def duplicate_excel_files(companies):
+    source_file_name = "Contractor_Breakdown_Overview.xlsx"
+    for company in companies:
+        print("copy Contractor_Breakdown_Overview.xlsx to Contractor_Breakdown_Overview_" + company + ".xlsx")
+        destination_file_name = "Contractor_Breakdown_" + company + ".xlsx"
+        shutil.copy2(source_file_name, destination_file_name)
+
+
+# Main
+
+print("Starting script")
+print("")
+
+# Read input files
+#state = pd.read_excel("input\Agent State Detail Report.xlsx", header = [1], index_col = 0, skipfooter = 2, parse_dates = ["State Transition Time"])
+state = pd.read_excel(sys.argv[1], index_col = 0, parse_dates = ["State Transition Time"])
+company = pd.read_csv("company.csv") # Read company lookup csv file
+
+# rename columns to something useful
+#state.columns =(["agent_name", "agent_id", "extension", "state_transition_time", "agent_state", "reason", "duration"])
+state.set_index(["Agent ID", "State Transition Time"])
+state.set_index(["Agent ID", "State Transition Time"])
+company.columns = (["Company", "Agent Name"])
+
+state["Duration"] = state.Duration.astype(str)
+state["State Transition Time"] = pd.to_datetime(state["State Transition Time"]).dt.date
+
+# convert duration into components (hours, minutes, seconds)
+state["hours"] = state.Duration.str.split(":", expand = True)[0].astype(float)
+state["minutes"] = state.Duration.str.split(":", expand = True)[1].astype(float)
+state["seconds"] = state.Duration.str.split(":", expand = True)[2].astype(float)
+
+# compute total seconds based on float components
+state["total_seconds"] = ((state.Duration.str.split(":", expand = True)[0].astype(float) * 3600 ) +  
+    (state.Duration.str.split(":", expand = True)[1].astype(float) * 60 ) + 
+    (state.Duration.str.split(":", expand = True)[2].astype(float)))
+
+
+# merge the company data into the state date
+state = pd.merge(state, company, left_on = "Agent Name", right_on = "Agent Name")
+#state = pd.merge(state, company, left_on = "Agent ID", right_on "agent_id")
+
+# group the data into something that can populate the spreadsheets
+agenttime = state.groupby(["Company", "Agent ID", "State Transition Time", "Agent State"]).total_seconds.sum()#.unstack()
+
+print(agenttime.head(10))
+
+#companies = state.company.unique()
+#duplicate_excel_files(companies)  # comment this call to suspend file copy
+
+# Copy the Breakdown File into an editable version
+#source_file_name = "Contractor_Breakdown_Overview.xlsx"
+#now = datetime.now()
+#date_time = now.strftime("%m-%d-%Y")
+#destination_file_name = "Contractor_Breakdown_Overview_" + date_time + ".xlsx"
+#shutil.copy2(source_file_name, destination_file_name)
+
+# Load the XLSX workbook for iteration
+#workbook = load_workbook(filename = destination_file_name)
+
+# Iterate through the group and load data into the XLSX file.
+#for name in agenttime.index:
+  #print(agenttime.loc[(name)])
+  #co, uid, ts, state = name # Split tuple into component elements
+  #worksheet = workbook.active[co]
+  
+
+  #state = state.strip()     # Clean the string
+  
+  #print(co)
+  #worksheet = workbook.active[co.strip()] # move to the appropriate worksheet  
+  
+ # if state == "Logged-in":
+ #   print("Logged In")
+ # elif state == "Logout":
+ #   print("Logout")
+ # elif state =="Ready":
+ #   print("Ready")
+ # elif state == "Reserved":
+ #   print("Reserved")
+ # elif state == "Talking":
+ #   print("Talking")
+ # elif state == "Work":
+ #   print("Work")
+ # elif state == "Not Ready":
+ #   print("Not Ready")
+  
+  #print(time.strftime("%H:%M:%S", time.gmtime(agenttime.loc[(name)]))
+  #print(datetime.timedelta(seconds=60))
+
+
+
+
+# Create output files (flat CSV file and grouped XLSX file)
+#now = datetime.now()
+#date_time = now.strftime("%m-%d-%Y") 
+#print(date_time)
+#agenttime.to_csv("out_" + date_time + ".csv")
+#agenttime.to_excel("out_" + date_time + ".xlsx")
+
+
+
+print("")
+print("Script complete")
